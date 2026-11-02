@@ -287,6 +287,71 @@
     promise_test(async (t) => {
       const target = document.getElementById("target");
       target.replaceChildren();
+      const abort_name = `x-abort-dsd-${method.toLowerCase()}`;
+      let abortPromise = null;
+      let writer = null;
+      customElements.define(abort_name, class extends HTMLTemplateElement {
+        constructor() {
+          super();
+          abortPromise = writer.abort("aborted-from-template-ctor");
+        }
+      }, { extends: "template" });
+      writer = target[method]({ runScripts: true }).getWriter();
+      window.events = [];
+      const slowRan = new Promise((resolve) => { window.on_slow = resolve; });
+      t.add_cleanup(() => { delete window.on_slow; });
+
+      await writer.write(
+        parser_blocking_script("abort_in_dsd_template") +
+        `<div id="host"><template is="${abort_name}" shadowrootmode="open"><span>shadow</span></template></div>`
+      );
+      await failOnTimeout(slowRan);
+      await after_task(t);
+      assert_array_equals(window.events, ["slow"]);
+      assert_not_equals(abortPromise, null, "customized built-in template constructor ran");
+      assert_equals(target.querySelector("#host").shadowRoot, null,
+                    "shadow root is not attached after abort from template constructor");
+      await abortPromise;
+      await promise_rejects_exactly(t, "aborted-from-template-ctor", writer.closed);
+    }, `${method}: abort() from a customized built-in <template shadowrootmode> constructor prevents attaching a shadow root`);
+
+    promise_test(async (t) => {
+      const target = document.getElementById("target");
+      target.replaceChildren();
+      const abort_name = `x-abort-for-${method.toLowerCase()}`;
+      let abortPromise = null;
+      let writer = null;
+      customElements.define(abort_name, class extends HTMLTemplateElement {
+        constructor() {
+          super();
+          abortPromise = writer.abort("aborted-from-template-for-ctor");
+        }
+      }, { extends: "template" });
+      writer = target[method]({ runScripts: true }).getWriter();
+      window.events = [];
+      const slowRan = new Promise((resolve) => { window.on_slow = resolve; });
+      t.add_cleanup(() => { delete window.on_slow; });
+
+      await writer.write(
+        parser_blocking_script("abort_in_for_template") +
+        `<div id="patched"><?start name="m">Old<?end></div>` +
+        `<template is="${abort_name}" for="m">New</template>`
+      );
+      await failOnTimeout(slowRan);
+      await after_task(t);
+      assert_array_equals(window.events, ["slow"]);
+      assert_not_equals(abortPromise, null, "customized built-in template constructor ran");
+      assert_equals(target.querySelector("#patched").textContent, "Old",
+                    "marker is not patched after abort from template constructor");
+      assert_equals(target.querySelector("template"), null,
+                    "aborted template is not inserted into target");
+      await abortPromise;
+      await promise_rejects_exactly(t, "aborted-from-template-for-ctor", writer.closed);
+    }, `${method}: abort() from a customized built-in <template for> constructor prevents patching or inserting the template`);
+
+    promise_test(async (t) => {
+      const target = document.getElementById("target");
+      target.replaceChildren();
       const writer = target[method]({ runScripts: true }).getWriter();
       window.current_writer = writer;
       window.events = [];
