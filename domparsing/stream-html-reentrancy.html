@@ -289,10 +289,12 @@
       target.replaceChildren();
       const abort_name = `x-abort-dsd-${method.toLowerCase()}`;
       let abortPromise = null;
+      let shadowRootAttachedAtUpgrade = false;
       let writer = null;
       customElements.define(abort_name, class extends HTMLTemplateElement {
         constructor() {
           super();
+          shadowRootAttachedAtUpgrade = target.querySelector("#host")?.shadowRoot !== null;
           abortPromise = writer.abort("aborted-from-template-ctor");
         }
       }, { extends: "template" });
@@ -308,22 +310,26 @@
       await failOnTimeout(slowRan);
       await after_task(t);
       assert_array_equals(window.events, ["slow"]);
-      assert_not_equals(abortPromise, null, "customized built-in template constructor ran");
-      assert_equals(target.querySelector("#host").shadowRoot, null,
-                    "shadow root is not attached after abort from template constructor");
+      assert_not_equals(abortPromise, null, "customized built-in template constructor ran at microtask checkpoint");
+      assert_true(shadowRootAttachedAtUpgrade,
+                  "shadow root was attached before backup element queue upgraded the template");
+      assert_not_equals(target.querySelector("#host").shadowRoot, null,
+                        "shadow root remains attached");
       await abortPromise;
       await promise_rejects_exactly(t, "aborted-from-template-ctor", writer.closed);
-    }, `${method}: abort() from a customized built-in <template shadowrootmode> constructor prevents attaching a shadow root`);
+    }, `${method}: customized built-in <template shadowrootmode> upgrades at microtask checkpoint after attaching shadow root`);
 
     promise_test(async (t) => {
       const target = document.getElementById("target");
       target.replaceChildren();
       const abort_name = `x-abort-for-${method.toLowerCase()}`;
       let abortPromise = null;
+      let patchedTextAtUpgrade = null;
       let writer = null;
       customElements.define(abort_name, class extends HTMLTemplateElement {
         constructor() {
           super();
+          patchedTextAtUpgrade = target.querySelector("#patched")?.textContent;
           abortPromise = writer.abort("aborted-from-template-for-ctor");
         }
       }, { extends: "template" });
@@ -340,14 +346,52 @@
       await failOnTimeout(slowRan);
       await after_task(t);
       assert_array_equals(window.events, ["slow"]);
-      assert_not_equals(abortPromise, null, "customized built-in template constructor ran");
-      assert_equals(target.querySelector("#patched").textContent, "Old",
-                    "marker is not patched after abort from template constructor");
+      assert_not_equals(abortPromise, null, "customized built-in template constructor ran at microtask checkpoint");
+      assert_equals(patchedTextAtUpgrade, "New",
+                    "marker was patched before backup element queue upgraded the template");
+      assert_equals(target.querySelector("#patched").textContent, "New");
       assert_equals(target.querySelector("template"), null,
-                    "aborted template is not inserted into target");
+                    "<template for> is not inserted into target");
       await abortPromise;
       await promise_rejects_exactly(t, "aborted-from-template-for-ctor", writer.closed);
-    }, `${method}: abort() from a customized built-in <template for> constructor prevents patching or inserting the template`);
+    }, `${method}: customized built-in <template for> upgrades at microtask checkpoint after patching`);
+
+    promise_test(async (t) => {
+      const target = document.getElementById("target");
+      target.replaceChildren();
+      const abort_name = `x-abort-table-tpl-${method.toLowerCase()}`;
+      let connections = 0;
+      let abortPromise = null;
+      let writer = null;
+      customElements.define(abort_name, class extends HTMLAnchorElement {
+        connectedCallback() {
+          if (++connections === 2) {
+            abortPromise = writer.abort("aborted-in-table-text");
+          }
+        }
+      }, { extends: "a" });
+      writer = target[method]({ runScripts: true }).getWriter();
+      window.events = [];
+      const slowRan = new Promise((resolve) => { window.on_slow = resolve; });
+      t.add_cleanup(() => { delete window.on_slow; });
+
+      await writer.write(
+        parser_blocking_script("abort_in_table_text_tpl") +
+        `<div id="patched"><?start name="m">Old<?end></div>` +
+        `<template for="m"><b><a is="${abort_name}">1</b><table> x</template>`
+      );
+      await failOnTimeout(slowRan);
+      await after_task(t);
+      assert_array_equals(window.events, ["slow"]);
+      assert_equals(connections, 2, "foster-parented formatting element connectedCallback ran");
+      const comments = Array.from(target.querySelector("#patched").childNodes)
+        .filter((n) => n.nodeType === Node.COMMENT_NODE)
+        .map((n) => n.data);
+      assert_array_equals(comments, ['?start name="m"', "?end"],
+                          "</template> must not remove patch markers after abort in table text");
+      await abortPromise;
+      await promise_rejects_exactly(t, "aborted-in-table-text", writer.closed);
+    }, `${method}: abort() from a foster-parented custom element reaction in table text prevents reprocessing </template>`);
 
     promise_test(async (t) => {
       const target = document.getElementById("target");
@@ -411,5 +455,43 @@
       assert_array_equals(ids(target), ["a", "b"]);
     }, `${method}: close() from a streamed inline script after a parser-blocking script closes the stream after the current chunk`);
   }
+
+  promise_test(async (t) => {
+    const iframe = document.createElement("iframe");
+    iframe.srcdoc = "<!doctype html><html><body></body></html>";
+    await new Promise((resolve) => {
+      iframe.addEventListener("load", resolve, { once: true });
+      document.body.appendChild(iframe);
+    });
+    t.add_cleanup(() => iframe.remove());
+
+    const iframeWin = iframe.contentWindow;
+    const iframeDoc = iframe.contentDocument;
+    let connections = 0;
+    let abortPromise = null;
+    let writer = null;
+    iframeWin.customElements.define("x-abort-table-body", class extends iframeWin.HTMLAnchorElement {
+      connectedCallback() {
+        if (++connections === 2) {
+          abortPromise = writer.abort("aborted-before-body-reprocess");
+        }
+      }
+    }, { extends: "a" });
+
+    iframeWin.events = [];
+    const slowRan = new Promise((resolve) => { iframeWin.on_slow = resolve; });
+    writer = iframeDoc.documentElement.streamHTMLUnsafe({ runScripts: true }).getWriter();
+    await writer.write(
+      "<script src='resources/slow.js?pipe=trickle(d0.2)&abort_body_reprocess=1'></" + "script>" +
+      "<b><a is='x-abort-table-body'>1</b><table> x<body data-leaked='1'>"
+    );
+    await failOnTimeout(slowRan);
+    await after_task(t);
+    assert_equals(connections, 2, "foster-parented formatting element connectedCallback ran");
+    assert_false(iframeDoc.body.hasAttribute("data-leaked"),
+                 "<body> attributes must not be merged after abort in table text");
+    await abortPromise;
+    await promise_rejects_exactly(t, "aborted-before-body-reprocess", writer.closed);
+  }, "documentElement.streamHTMLUnsafe: abort() from a foster-parented custom element reaction in table text prevents reprocessing <body> attributes");
 </script>
 </body>

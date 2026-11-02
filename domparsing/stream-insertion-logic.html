@@ -540,6 +540,43 @@
         assert_false(parent.textContent.includes("new"), "New <template for> content must not be applied after ref_node displacement");
       }, `${method_name}: <template for> after ref_node displacement does not apply and errors the stream`);
 
+      promise_test(async (t) => {
+        const parent = document.createElement("div");
+        parent.innerHTML = '<?start name="m"?>old<?end?>';
+        document.body.appendChild(parent);
+        t.add_cleanup(() => parent.remove());
+        const ref_node = document.createElement("span");
+        parent.appendChild(ref_node);
+
+        const ce_name = `x-displace-ref-${++ceCounter}`;
+        let connections = 0;
+        customElements.define(ce_name, class extends HTMLAnchorElement {
+          connectedCallback() {
+            if (++connections === 2) {
+              ref_node.remove();
+            }
+          }
+        }, { extends: "a" });
+
+        window.remove_table = () => parent.querySelector("table").remove();
+        t.add_cleanup(() => { delete window.remove_table; });
+
+        const writer = create_unsafe_stream(parent, ref_node).getWriter();
+        await promise_rejects_dom(
+          t,
+          "HierarchyRequestError",
+          writer.write(
+            `<b><a is="${ce_name}">1</b><table><script>window.remove_table();<` +
+            `/script> x<template for="m">new</template>`,
+          ),
+          "Foster-parented character after ref_node displacement in table text must reject with HierarchyRequestError",
+        );
+
+        assert_equals(connections, 2, "foster-parented formatting element connectedCallback ran");
+        assert_true(parent.textContent.includes("old"), "Marker range must not be updated after table-text abort");
+        assert_false(parent.textContent.includes("new"), "Reprocessed <template for> must not run after table-text abort");
+      }, `${method_name}: ref_node displacement during table-text foster parenting errors the stream without reprocessing <template for>`);
+
       for (const [label, chunk] of [["whitespace", "   \n\t  "], ["a comment", "<!--comment-->"]]) {
         promise_test(async (t) => {
           const parent = document.createElement("div");
