@@ -18,7 +18,14 @@
 
   window.events = [];
 
-  function waitForNextInsertedScript(deferOnly = false) {
+  function failOnTimeout(promise, ms = 2500) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => step_timeout(() => reject(new Error("timed out")), ms)),
+    ]);
+  }
+
+  function waitForNextInsertedScript(t, deferOnly = false) {
     return new Promise((resolve) => {
       const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
@@ -31,6 +38,7 @@
           }
         }
       });
+      t.add_cleanup(() => observer.disconnect());
       observer.observe(document.head, { childList: true });
     });
   }
@@ -38,7 +46,7 @@
   // A deferred script is in the fragment parser's list of scripts that will
   // execute when the document has finished parsing.
   promise_test(async (t) => {
-    const deferScriptInserted = waitForNextInsertedScript(true);
+    const deferScriptInserted = waitForNextInsertedScript(t, true);
     const writer = document.head
       .streamAppendHTMLUnsafe({ runScripts: true })
       .getWriter();
@@ -46,7 +54,8 @@
       "<script defer blocking='render' src='resources/slow.js?pipe=trickle(d3)&render_blocking_abort_defer=1'></" +
         "script>"
     );
-    const script = await deferScriptInserted;
+    const script = await failOnTimeout(deferScriptInserted);
+    t.add_cleanup(() => script.remove());
     const loaded = new Promise((resolve) => {
       script.addEventListener("load", () => resolve("load"));
       script.addEventListener("error", () => resolve("error"));
@@ -54,8 +63,8 @@
     const abortTime = performance.now();
     await writer.abort();
 
-    const frameTime = await new Promise((resolve) =>
-      requestAnimationFrame(resolve)
+    const frameTime = await failOnTimeout(
+      new Promise((resolve) => requestAnimationFrame(resolve))
     );
     assert_less_than(
       frameTime - abortTime,

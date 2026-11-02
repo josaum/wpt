@@ -18,7 +18,14 @@
 
   window.events = [];
 
-  function waitForNextInsertedScript(deferOnly = false) {
+  function failOnTimeout(promise, ms = 2500) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => step_timeout(() => reject(new Error("timed out")), ms)),
+    ]);
+  }
+
+  function waitForNextInsertedScript(t, deferOnly = false) {
     return new Promise((resolve) => {
       const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
@@ -31,12 +38,13 @@
           }
         }
       });
+      t.add_cleanup(() => observer.disconnect());
       observer.observe(document.head, { childList: true });
     });
   }
 
   promise_test(async (t) => {
-    const scriptInserted = waitForNextInsertedScript(false);
+    const scriptInserted = waitForNextInsertedScript(t, false);
     const writer = document.head
       .streamAppendHTMLUnsafe({ runScripts: true })
       .getWriter();
@@ -44,7 +52,8 @@
       "<script blocking='render' src='resources/slow.js?pipe=trickle(d3)&render_blocking_abort=1'><" +
         "/script>"
     );
-    const script = await scriptInserted;
+    const script = await failOnTimeout(scriptInserted);
+    t.add_cleanup(() => script.remove());
     const loaded = new Promise((resolve) => {
       script.addEventListener("load", () => resolve("load"));
       script.addEventListener("error", () => resolve("error"));
@@ -54,8 +63,8 @@
 
     // Rendering must be unblocked promptly, long before the 3s slow script
     // would have finished loading.
-    const frameTime = await new Promise((resolve) =>
-      requestAnimationFrame(resolve)
+    const frameTime = await failOnTimeout(
+      new Promise((resolve) => requestAnimationFrame(resolve))
     );
     assert_less_than(
       frameTime - abortTime,

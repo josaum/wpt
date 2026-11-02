@@ -12,7 +12,8 @@ for (const method of ["streamAppendHTMLUnsafe", "streamHTMLUnsafe"]) {
         const placeholder = document.getElementById("placeholder");
         const writable = placeholder[method]({runScripts: true});
         const writer = writable.getWriter();
-        t.add_cleanup(() => { window.did_run = false });
+        window.did_run = false;
+        t.add_cleanup(() => { delete window.did_run; });
         await writer.write("<script>window.did_run = true;</" + "script>");
         await writer.close();
         assert_true(window.did_run);
@@ -22,7 +23,8 @@ for (const method of ["streamAppendHTMLUnsafe", "streamHTMLUnsafe"]) {
         const placeholder = document.getElementById("placeholder");
         const writable = placeholder[method]({runScripts: false});
         const writer = writable.getWriter();
-        t.add_cleanup(() => { window.did_run = false });
+        window.did_run = false;
+        t.add_cleanup(() => { delete window.did_run; });
         await writer.write("<script>window.did_run = true;</" + "script>");
         await writer.close();
         assert_false(window.did_run);

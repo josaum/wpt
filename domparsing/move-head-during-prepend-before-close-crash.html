@@ -7,6 +7,9 @@
 <script>
   (async () => {
     try {
+      if (!("streamHTML" in document.documentElement)) {
+        return;
+      }
       // Previously a crash repro when streamPrependHTML() was allowed on the
       // html element and head was removed before close(); now throws
       // HierarchyRequestError.

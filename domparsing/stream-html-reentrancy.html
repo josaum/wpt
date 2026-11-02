@@ -164,7 +164,7 @@
       assert_array_equals(window.ids_at_script, ["a"]);
       assert_array_equals(ids(target), ["a"], "parsing stops after the current token when abort() is called from a task");
       assert_false(window.rest_parsed, "scripts in the rest of the chunk do not run");
-      await window.abort_promise;
+      await failOnTimeout(window.abort_promise);
       await promise_rejects_exactly(t, "aborted-from-task", writer.closed);
       await promise_rejects_exactly(t, "aborted-from-task", writer.write("<p id='c'>c</p>"), "subsequent writes reject with the abort reason");
       assert_array_equals(ids(target), ["a"]);
@@ -203,7 +203,7 @@
       assert_not_equals(abortPromise, null, "the mutation observer aborted the stream");
       assert_not_equals(target.querySelector("#late"), null, "the inline script was inserted");
       assert_false(window.ran_after_abort, "the script whose end tag was being processed does not run");
-      await abortPromise;
+      await failOnTimeout(abortPromise);
       await promise_rejects_exactly(t, "aborted-from-microtask", writer.closed);
     }, `${method}: abort() from a microtask before a streamed script is prepared prevents that script from running`);
 
@@ -238,7 +238,7 @@
       assert_equals(target.innerHTML.replace(/<script[^]*<\/script>/, ""),
                     `<p><b is="${name}">1</b></p><b is="${name}"></b>`,
                     "the text after the abort is not inserted");
-      await abortPromise;
+      await failOnTimeout(abortPromise);
       await promise_rejects_exactly(t, "aborted-from-reaction", writer.closed);
     }, `${method}: abort() from a custom element reaction drops text that the current token would insert`);
 
@@ -281,7 +281,7 @@
       assert_equals(target.innerHTML.replace(/<script[^]*<\/script>/, ""),
                     `<p><b is="${abort_name}">1<i is="${log_name}">2</i></b></p><b is="${abort_name}"></b>`,
                     "the reconstructed <i> and the text after the abort are not inserted");
-      await abortPromise;
+      await failOnTimeout(abortPromise);
       await promise_rejects_exactly(t, "aborted-from-reaction", writer.closed);
     }, `${method}: abort() from a custom element reaction drops elements that the current token would insert`);
 
@@ -316,7 +316,7 @@
                   "shadow root was attached before backup element queue upgraded the template");
       assert_not_equals(target.querySelector("#host").shadowRoot, null,
                         "shadow root remains attached");
-      await abortPromise;
+      await failOnTimeout(abortPromise);
       await promise_rejects_exactly(t, "aborted-from-template-ctor", writer.closed);
     }, `${method}: customized built-in <template shadowrootmode> upgrades at microtask checkpoint after attaching shadow root`);
 
@@ -353,7 +353,7 @@
       assert_equals(target.querySelector("#patched").textContent, "New");
       assert_equals(target.querySelector("template"), null,
                     "<template for> is not inserted into target");
-      await abortPromise;
+      await failOnTimeout(abortPromise);
       await promise_rejects_exactly(t, "aborted-from-template-for-ctor", writer.closed);
     }, `${method}: customized built-in <template for> upgrades at microtask checkpoint after patching`);
 
@@ -390,7 +390,7 @@
         .map((n) => n.data);
       assert_array_equals(comments, ['?start name="m"', "?end"],
                           "</template> must not remove patch markers after abort in table text");
-      await abortPromise;
+      await failOnTimeout(abortPromise);
       await promise_rejects_exactly(t, "aborted-in-table-text", writer.closed);
     }, `${method}: abort() from a foster-parented custom element reaction in table text prevents reprocessing </template>`);
 
@@ -418,7 +418,7 @@
       assert_array_equals(window.ids_at_script, ["a"], "the re-entrant write is not parsed while the script runs");
       assert_array_equals(window.ids_at_rest, ["a", "b"], "the re-entrant write is parsed after the rest of the chunk");
       assert_array_equals(ids(target), ["a", "b", "c"], "the re-entrant write is consumed by the ongoing run of the parser");
-      await window.write_promise;
+      await failOnTimeout(window.write_promise);
       await writer.close();
       assert_array_equals(ids(target), ["a", "b", "c"]);
     }, `${method}: write() from a streamed inline script after a parser-blocking script is parsed after the current chunk`);
@@ -491,7 +491,7 @@
     assert_equals(connections, 2, "foster-parented formatting element connectedCallback ran");
     assert_false(iframeDoc.body.hasAttribute("data-leaked"),
                  "<body> attributes must not be merged after abort in table text");
-    await abortPromise;
+    await failOnTimeout(abortPromise);
     await promise_rejects_exactly(t, "aborted-before-body-reprocess", writer.closed);
   }, "documentElement.streamHTMLUnsafe: abort() from a foster-parented custom element reaction in table text prevents reprocessing <body> attributes");
 </script>
