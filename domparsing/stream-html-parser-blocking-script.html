@@ -345,7 +345,7 @@
   }, "Unclosed <script> at close() never runs, stays in the DOM, and is marked already started");
 
   // D6: A rejected write aborts the parser so a pending blocking script never runs and buffered markup is not inserted
-  for (const rejectKind of ["symbol", "toStringThrow", "displacedRef"]) {
+  for (const rejectKind of ["symbol", "toStringThrow", "toStringAbortAndThrow", "toStringRemoveRefAndThrow", "displacedRef"]) {
     promise_test(async (t) => {
       window.events = [];
       const placeholder = document.getElementById("placeholder");
@@ -363,11 +363,35 @@
 
       if (rejectKind === "symbol") {
         await promise_rejects_js(t, TypeError, writer.write(Symbol("bad")));
+        await promise_rejects_js(t, TypeError, writer.closed);
       } else if (rejectKind === "toStringThrow") {
-        await promise_rejects_js(t, Error, writer.write({ toString() { throw new Error("boom"); } }));
+        const err = new Error("boom");
+        await promise_rejects_exactly(t, err, writer.write({ toString() { throw err; } }));
+        await promise_rejects_exactly(t, err, writer.closed);
+      } else if (rejectKind === "toStringAbortAndThrow") {
+        const err = new Error("boom-after-abort");
+        let abortPromise = null;
+        await promise_rejects_exactly(t, err, writer.write({
+          toString() {
+            abortPromise = writer.abort("abort-from-toString");
+            throw err;
+          }
+        }));
+        await abortPromise;
+        await promise_rejects_exactly(t, "abort-from-toString", writer.closed);
+      } else if (rejectKind === "toStringRemoveRefAndThrow") {
+        const err = new Error("boom-after-remove-ref");
+        await promise_rejects_exactly(t, err, writer.write({
+          toString() {
+            ref.remove();
+            throw err;
+          }
+        }));
+        await promise_rejects_exactly(t, err, writer.closed);
       } else {
         ref.remove();
         await promise_rejects_dom(t, "HierarchyRequestError", writer.write("more"));
+        await promise_rejects_dom(t, "HierarchyRequestError", writer.closed);
       }
 
       await settle;
