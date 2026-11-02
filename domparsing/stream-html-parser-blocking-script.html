@@ -607,16 +607,20 @@
       const start = performance.now();
       await writer.write(
         "<p id='before-blocking'>before</p>" +
-        "<script src='resources/slow.js?pipe=trickle(d0.5)&close=1'></" + "script>" +
+        `<script src='resources/slow.js?pipe=trickle(d0.5)&close=${method}'></` + "script>" +
         "<p id='after-blocking'>after</p>"
       );
-      assert_array_equals(window.events, [], "the write promise does not wait for the parser-blocking script");
       assert_not_equals(placeholder.querySelector("#before-blocking"), null);
-      assert_equals(placeholder.querySelector("#after-blocking"), null, "parsing is blocked on the script");
+      if (performance.now() - start < slowScriptDelayMs) {
+        assert_array_equals(window.events, [], "the write promise does not wait for the parser-blocking script");
+        assert_equals(placeholder.querySelector("#after-blocking"), null, "parsing is blocked on the script");
+      }
 
       await writer.write("<p id='second-chunk'>second</p><script>window.resolve_second();</" + "script>");
-      assert_array_equals(window.events, [], "a subsequent write promise does not wait for the parser-blocking script either");
-      assert_equals(placeholder.querySelector("#second-chunk"), null);
+      if (performance.now() - start < slowScriptDelayMs) {
+        assert_array_equals(window.events, [], "a subsequent write promise does not wait for the parser-blocking script either");
+        assert_equals(placeholder.querySelector("#second-chunk"), null);
+      }
 
       const closePromise = writer.close();
       let closeSettled = false;

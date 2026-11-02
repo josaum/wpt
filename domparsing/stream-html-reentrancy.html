@@ -47,8 +47,9 @@
     return Array.from(target.querySelectorAll("[id]"), (e) => e.id);
   }
 
+  let parserBlockingCount = 0;
   function parser_blocking_script(name) {
-    return `<script src='resources/slow.js?pipe=trickle(d0.2)&${name}=1'></` + "script>";
+    return `<script src='resources/slow.js?pipe=trickle(d0.2)&${name}=${++parserBlockingCount}'></` + "script>";
   }
 
   function after_task(t) {
