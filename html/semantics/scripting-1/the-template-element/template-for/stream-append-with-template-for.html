@@ -15,6 +15,6 @@ promise_test(async t => {
     await writer.write("New content");
     await writer.write("</template>");
     await writer.close();
-    assert_equals(document.querySelector("#placeholder").textContent, "New content")
-});
+    assert_equals(document.querySelector("#placeholder").textContent, "New content");
+}, "streamAppendHTMLUnsafe applies <template for>");
 </script>
