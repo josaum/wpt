@@ -80,6 +80,7 @@ promise_test(async t => {
 
 promise_test(async t => {
     const style = document.querySelector("#style");
+    t.add_cleanup(() => { style.textContent = ""; });
     const writable = style.streamAppendHTMLUnsafe();
     assert_true(writable instanceof WritableStream, "node.streamAppendHTMLUnsafe() returns a writable stream");
     const writer = await writable.getWriter();
@@ -102,6 +103,7 @@ promise_test(async t => {
 promise_test(async t => {
     const element = document.createElement("div");
     document.body.append(element);
+    t.add_cleanup(() => element.remove());
     window.did_eval_script = false;
     const writer = element.streamAppendHTMLUnsafe({runScripts: true}).getWriter();
     await writer.write("<script>window.did_eval_script = true;");
@@ -141,6 +143,7 @@ promise_test(async t => {
 promise_test(async t => {
     const element = document.createElement("div");
     document.body.append(element);
+    t.add_cleanup(() => element.remove());
     window.did_eval_script = false;
     const writer = element.streamAppendHTMLUnsafe({runScripts: true}).getWriter();
     assert_false(window.did_eval_script);

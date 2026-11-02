@@ -192,6 +192,7 @@
           const method = `stream${position}HTML${safe ? "" : "Unsafe"}`;
           promise_test(
             async (t) => {
+              t.add_cleanup(() => { delete window.did_run; });
               window.did_run = false;
               await create_and_stream(
                 method,
@@ -379,6 +380,7 @@
       promise_test(async (t) => {
         const template = document.createElement("template");
         document.body.append(template);
+        t.add_cleanup(() => template.remove());
         template.innerHTML = "before;";
 
         const writer = template[`streamAppendHTML${suffix}`]().getWriter();
@@ -392,6 +394,7 @@
       promise_test(async (t) => {
         const template = document.createElement("template");
         document.body.append(template);
+        t.add_cleanup(() => template.remove());
         template.innerHTML = "after;";
 
         const writer = template[`streamPrependHTML${suffix}`]().getWriter();
@@ -405,6 +408,7 @@
       promise_test(async (t) => {
         const template = document.createElement("template");
         document.body.append(template);
+        t.add_cleanup(() => template.remove());
         template.innerHTML = "before;<span id='child'></span>after;";
         const child = template.content.querySelector('#child');
 
@@ -418,6 +422,7 @@
       promise_test(async (t) => {
         const template = document.createElement("template");
         document.body.append(template);
+        t.add_cleanup(() => template.remove());
         template.innerHTML = "before;<span id='child'></span>after;";
         const child = template.content.querySelector('#child');
 
@@ -431,6 +436,7 @@
       promise_test(async (t) => {
         const template = document.createElement("template");
         document.body.append(template);
+        t.add_cleanup(() => template.remove());
         template.innerHTML = "before;<span id='child'></span>after;";
         const child = template.content.querySelector('#child');
 

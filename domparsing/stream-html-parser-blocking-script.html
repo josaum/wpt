@@ -131,15 +131,16 @@
 
   function waitForResource(url) {
     const name = new URL(url, location.href).href;
+    let observer;
     return withTimeout(new Promise(resolve => {
-      const observer = new PerformanceObserver(list => {
+      observer = new PerformanceObserver(list => {
         if (list.getEntries().some(e => e.name === name)) {
           observer.disconnect();
           resolve();
         }
       });
       observer.observe({ type: "resource", buffered: true });
-    }));
+    })).finally(() => observer?.disconnect());
   }
 
   promise_test(async (t) => {

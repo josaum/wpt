@@ -128,6 +128,7 @@
 
   promise_test(async (t) => {
     const style = document.querySelector("#style");
+    t.add_cleanup(() => { style.textContent = ""; });
     const writable = style.streamHTML();
     assert_true(
       writable instanceof WritableStream,
@@ -170,6 +171,7 @@
   promise_test(async (t) => {
     const element = document.createElement("div");
     document.body.append(element);
+    t.add_cleanup(() => element.remove());
     window.did_eval_script = false;
     const writer = element.streamHTML({ runScripts: true }).getWriter();
     assert_false(window.did_eval_script);
@@ -185,6 +187,7 @@
     const element = document.createElement("div");
     element.innerHTML = "<p>before;</p>";
     document.body.append(element);
+    t.add_cleanup(() => element.remove());
     const writer = element
       .streamHTML({ sanitizer: { removeElements: ["p"] } })
       .getWriter();
@@ -197,6 +200,7 @@
   promise_test(async (t) => {
     const element = document.createElement("div");
     document.body.append(element);
+    t.add_cleanup(() => element.remove());
     const writer = element.streamHTML().getWriter();
     await writer.write("<script id=forbidden><" + "/script>");
     await writer.close();
@@ -208,6 +212,7 @@
     const shadow = element.attachShadow({mode: "open"});
     shadow.innerHTML = "<p>before;</p>";
     document.body.append(element);
+    t.add_cleanup(() => element.remove());
     const writer = shadow
       .streamHTML({ sanitizer: { removeElements: ["p"] } })
       .getWriter();
@@ -221,6 +226,7 @@
     const element = document.createElement("div");
     const shadow = element.attachShadow({mode: "open"});
     document.body.append(element);
+    t.add_cleanup(() => element.remove());
     const writer = shadow.streamHTML().getWriter();
     await writer.write("<script id=forbidden><" + "/script>");
     await writer.close();
