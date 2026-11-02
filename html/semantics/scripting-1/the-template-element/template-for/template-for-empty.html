@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <title>HTML partial updates: template for with empty for attribute (in-place patching)</title>
+<link rel="help" href="https://html.spec.whatwg.org/#attr-template-for">
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
 <body>
+<div id="sanity"><?start name="s">Old<?end></div>
+<template for="s">New</template>
 <div id="container">
   <span>Before</span>
   <template id="empty-for-template" for="">
@@ -14,6 +17,8 @@
 
 <script>
 test(() => {
+  assert_equals(document.getElementById('sanity').textContent, 'New',
+                'sanity check: <template for> is supported');
   const container = document.getElementById('container');
 
   // Verify that empty-for-template behaves as a regular template:
