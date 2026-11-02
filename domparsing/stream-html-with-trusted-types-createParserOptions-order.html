@@ -50,5 +50,57 @@
         }
       }, `${method_name} checks createParserOptions before hierarchy checks`);
     }
+
+    for (const pos of ["Before", "After", "ReplaceWith"]) {
+      const method_name = `stream${pos}HTMLUnsafe`;
+      test((t) => {
+        let recorded_type = null;
+        let recorded_sink = null;
+        createParserOptions = (options, type, sink) => {
+          recorded_type = type;
+          recorded_sink = sink;
+          throw new Error("createParserOptions called");
+        };
+        t.add_cleanup(() => {
+          createParserOptions = (options) => options;
+        });
+
+        const detachedText = document.createTextNode("detached");
+        try {
+          detachedText[method_name]();
+          assert_unreached("Should have thrown");
+        } catch (e) {
+          assert_equals(e.message, "createParserOptions called");
+          assert_equals(recorded_type, "TrustedHTMLParserOptions");
+          assert_equals(recorded_sink, `Node ${method_name}`);
+        }
+      }, `CharacterData.${method_name} checks createParserOptions before hierarchy checks`);
+    }
+
+    for (const method_name of ["streamHTMLUnsafe", "streamAppendHTMLUnsafe", "streamPrependHTMLUnsafe"]) {
+      test((t) => {
+        let recorded_type = null;
+        let recorded_sink = null;
+        createParserOptions = (options, type, sink) => {
+          recorded_type = type;
+          recorded_sink = sink;
+          throw new Error("createParserOptions called");
+        };
+        t.add_cleanup(() => {
+          createParserOptions = (options) => options;
+        });
+
+        const host = document.createElement("div");
+        const sr = host.attachShadow({ mode: "open" });
+        try {
+          sr[method_name]();
+          assert_unreached("Should have thrown");
+        } catch (e) {
+          assert_equals(e.message, "createParserOptions called");
+          assert_equals(recorded_type, "TrustedHTMLParserOptions");
+          assert_equals(recorded_sink, `ShadowRoot ${method_name}`);
+        }
+      }, `ShadowRoot.${method_name} passes ShadowRoot sink name to createParserOptions`);
+    }
   </script>
 </body>

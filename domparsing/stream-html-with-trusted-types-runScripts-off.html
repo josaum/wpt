@@ -52,6 +52,38 @@
           assert_false(window.did_run);
         }, `The default TT policy can turn runScripts off for ${method}`);
       }
+
+      for (const method of ["streamHTMLUnsafe", "streamAppendHTMLUnsafe", "streamPrependHTMLUnsafe"]) {
+        promise_test(async (t) => {
+          t.add_cleanup(cleanup);
+          t.add_cleanup(() => { delete window.did_run; });
+          const host = document.createElement("div");
+          const sr = host.attachShadow({ mode: "open" });
+          container.appendChild(host);
+          t.add_cleanup(() => host.remove());
+          const writer = sr[method]({ runScripts: true, sanitizer: { removeElements: ["p"] } }).getWriter();
+          window.did_run = false;
+          await writer.write("<script>window.did_run = true;</" + "script>");
+          await writer.close();
+          assert_false(window.did_run);
+        }, `The default TT policy can turn runScripts off for ShadowRoot.${method}`);
+      }
+
+      for (const method of ["streamBeforeHTMLUnsafe", "streamAfterHTMLUnsafe", "streamReplaceWithHTMLUnsafe"]) {
+        promise_test(async (t) => {
+          t.add_cleanup(cleanup);
+          t.add_cleanup(() => { delete window.did_run; });
+          const parent = document.createElement("div");
+          const text = parent.appendChild(document.createTextNode("anchor"));
+          container.appendChild(parent);
+          t.add_cleanup(() => parent.remove());
+          const writer = text[method]({ runScripts: true, sanitizer: { removeElements: ["p"] } }).getWriter();
+          window.did_run = false;
+          await writer.write("<script>window.did_run = true;</" + "script>");
+          await writer.close();
+          assert_false(window.did_run);
+        }, `The default TT policy can turn runScripts off for CharacterData.${method}`);
+      }
     </script>
   </body>
 </html>

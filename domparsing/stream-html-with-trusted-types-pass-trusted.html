@@ -101,6 +101,44 @@
           );
         }, `A given TrustedHTMLParserOptions can override default policy's sanitizer for ${method}`);
       }
+
+      for (const method of ["streamHTMLUnsafe", "streamAppendHTMLUnsafe", "streamPrependHTMLUnsafe"]) {
+        promise_test(async (t) => {
+          t.add_cleanup(cleanup);
+          t.add_cleanup(() => { delete window.did_run; });
+          const host = document.createElement("div");
+          const sr = host.attachShadow({ mode: "open" });
+          container.appendChild(host);
+          t.add_cleanup(() => host.remove());
+          createParserOptions = (options) => ({ ...options, runScripts: false });
+          const trusted_options = withScripts.createParserOptions({ runScripts: true });
+          const writer = sr[method](trusted_options).getWriter();
+          window.did_run = false;
+          await writer.write("<script>window.did_run = true;<" + "/script>");
+          await writer.close();
+          assert_equals(sr.querySelectorAll("script").length, 1);
+          assert_equals(window.did_run, true);
+        }, `A given TrustedHTMLParserOptions can override default policy's runScripts for ShadowRoot.${method}`);
+      }
+
+      for (const method of ["streamBeforeHTMLUnsafe", "streamAfterHTMLUnsafe", "streamReplaceWithHTMLUnsafe"]) {
+        promise_test(async (t) => {
+          t.add_cleanup(cleanup);
+          t.add_cleanup(() => { delete window.did_run; });
+          const parent = document.createElement("div");
+          const text = parent.appendChild(document.createTextNode("anchor"));
+          container.appendChild(parent);
+          t.add_cleanup(() => parent.remove());
+          createParserOptions = (options) => ({ ...options, runScripts: false });
+          const trusted_options = withScripts.createParserOptions({ runScripts: true });
+          const writer = text[method](trusted_options).getWriter();
+          window.did_run = false;
+          await writer.write("<script>window.did_run = true;<" + "/script>");
+          await writer.close();
+          assert_equals(parent.querySelectorAll("script").length, 1);
+          assert_equals(window.did_run, true);
+        }, `A given TrustedHTMLParserOptions can override default policy's runScripts for CharacterData.${method}`);
+      }
     </script>
   </body>
 </html>

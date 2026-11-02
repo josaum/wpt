@@ -32,15 +32,71 @@
       for (const method of methods) {
         const safe = !method.endsWith("Unsafe");
         test((t) => {
+          const container = document.querySelector("#container");
           let d = document.createElement("div");
-          document.querySelector("#container").appendChild(d);
+          let child = document.createElement("span");
+          d.appendChild(child);
+          container.appendChild(d);
+          t.add_cleanup(() => d.remove());
           if (safe) {
             assert_true(d[method]() instanceof WritableStream);
           } else {
             assert_equals(typeof Element.prototype[method], "function", `${method} is supported`);
             assert_throws_js(TypeError, () => d[method]());
+            assert_equals(d.parentNode, container, "target remains connected when TypeError is thrown");
+            assert_equals(d.firstChild, child, "target children remain intact when TypeError is thrown");
           }
         }, `${method} with trusted types and no default policy ${safe ? "returns a WritableStream" : "throws"}.`);
+      }
+
+      for (const method of [
+        "streamHTML",
+        "streamHTMLUnsafe",
+        "streamAppendHTML",
+        "streamAppendHTMLUnsafe",
+        "streamPrependHTML",
+        "streamPrependHTMLUnsafe",
+      ]) {
+        const safe = !method.endsWith("Unsafe");
+        test((t) => {
+          const host = document.createElement("div");
+          const sr = host.attachShadow({ mode: "open" });
+          const child = document.createElement("span");
+          sr.appendChild(child);
+          document.querySelector("#container").appendChild(host);
+          t.add_cleanup(() => host.remove());
+          if (safe) {
+            assert_true(sr[method]() instanceof WritableStream);
+          } else {
+            assert_equals(typeof ShadowRoot.prototype[method], "function", `${method} is supported on ShadowRoot`);
+            assert_throws_js(TypeError, () => sr[method]());
+            assert_equals(sr.firstChild, child, "ShadowRoot children remain intact when TypeError is thrown");
+          }
+        }, `ShadowRoot.${method} with trusted types and no default policy ${safe ? "returns a WritableStream" : "throws"}.`);
+      }
+
+      for (const method of [
+        "streamBeforeHTML",
+        "streamBeforeHTMLUnsafe",
+        "streamAfterHTML",
+        "streamAfterHTMLUnsafe",
+        "streamReplaceWithHTML",
+        "streamReplaceWithHTMLUnsafe",
+      ]) {
+        const safe = !method.endsWith("Unsafe");
+        test((t) => {
+          const parent = document.createElement("div");
+          const text = parent.appendChild(document.createTextNode("hello"));
+          document.querySelector("#container").appendChild(parent);
+          t.add_cleanup(() => parent.remove());
+          if (safe) {
+            assert_true(text[method]() instanceof WritableStream);
+          } else {
+            assert_equals(typeof CharacterData.prototype[method], "function", `${method} is supported on CharacterData`);
+            assert_throws_js(TypeError, () => text[method]());
+            assert_equals(text.parentNode, parent, "CharacterData remains attached when TypeError is thrown");
+          }
+        }, `CharacterData.${method} with trusted types and no default policy ${safe ? "returns a WritableStream" : "throws"}.`);
       }
 
       for (const method of [
