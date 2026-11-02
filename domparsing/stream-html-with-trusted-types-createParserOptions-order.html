@@ -102,5 +102,89 @@
         }
       }, `ShadowRoot.${method_name} passes ShadowRoot sink name to createParserOptions`);
     }
+
+    for (const pos of ["Before", "After", "ReplaceWith"]) {
+      const method_name = `stream${pos}HTMLUnsafe`;
+      test((t) => {
+        const container = document.createElement("div");
+        const target = document.createElement("span");
+        container.appendChild(target);
+
+        let callbackRan = false;
+        createParserOptions = (options) => {
+          callbackRan = true;
+          target.remove();
+          return options;
+        };
+        t.add_cleanup(() => {
+          createParserOptions = (options) => options;
+        });
+
+        assert_throws_dom("HierarchyRequestError", () => {
+          target[method_name]();
+        });
+        assert_true(callbackRan, "createParserOptions ran before parent check");
+      }, `${method_name} evaluates parent after createParserOptions detaches target`);
+    }
+
+    for (const pos of ["After", "ReplaceWith"]) {
+      const method_name = `stream${pos}HTMLUnsafe`;
+      promise_test(async (t) => {
+        const container = document.createElement("div");
+        const target = document.createElement("span");
+        target.textContent = "orig";
+        const tail = document.createElement("em");
+        tail.textContent = "tail";
+        container.append(target, tail);
+
+        createParserOptions = (options) => {
+          const inserted = document.createElement("i");
+          inserted.textContent = "mid";
+          target.after(inserted);
+          return options;
+        };
+        t.add_cleanup(() => {
+          createParserOptions = (options) => options;
+        });
+
+        const writer = target[method_name]().getWriter();
+        await writer.write("<b>new</b>");
+        await writer.close();
+
+        assert_equals(
+          container.innerHTML,
+          pos === "After"
+            ? "<span>orig</span><b>new</b><i>mid</i><em>tail</em>"
+            : "<b>new</b><i>mid</i><em>tail</em>",
+        );
+      }, `${method_name} captures nextSibling after createParserOptions runs`);
+    }
+
+    for (const kind of ["Element", "ShadowRoot"]) {
+      promise_test(async (t) => {
+        const host = document.createElement("div");
+        const root =
+          kind === "ShadowRoot" ? host.attachShadow({ mode: "open" }) : host;
+        const existing = document.createElement("em");
+        existing.textContent = "tail";
+        root.appendChild(existing);
+
+        createParserOptions = (options) => {
+          const inserted = document.createElement("i");
+          inserted.textContent = "first";
+          root.prepend(inserted);
+          return options;
+        };
+        t.add_cleanup(() => {
+          createParserOptions = (options) => options;
+        });
+
+        const writer = root.streamPrependHTMLUnsafe().getWriter();
+        await writer.write("<b>new</b>");
+        await writer.close();
+
+        assert_equals(root.innerHTML, "<b>new</b><i>first</i><em>tail</em>");
+      }, `${kind}.streamPrependHTMLUnsafe captures firstChild after createParserOptions runs`);
+    }
   </script>
 </body>
